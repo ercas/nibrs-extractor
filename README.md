@@ -4,6 +4,6 @@
 
 ### Rationale
 
-Older NIBRS data series from the ICPSR's NACJD archive, i.e. all data prior to 2016, are available only as wide-format text files with accompanying SAS or SPSS code. This makes it somewhat inconvenient to work with this data in other languages, such as R or Python.
+Older NIBRS data series from the ICPSR's NACJD archive, i.e. all data prior to 2016, are available only as wide-format text files with accompanying SAS or SPSS code. This makes it somewhat inconvenient to work with this data in other languages, such as R or Python, especially on systems without access to SAS or SPSS.
 
 `nibrs-extractor` extracts metadata and column information from the included SAS code and manifest files and uses this information to generate new CSV files that can be opened in other languages and programs.
