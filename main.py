@@ -5,6 +5,7 @@
 
 import csv
 import dataclasses
+import functools
 import glob
 import os
 import re
@@ -35,6 +36,9 @@ class NibrsSegment:
         data: The name of the data file
         sas: The name of the SAS code file
         records: The number of records in this segment
+
+    Properties:
+        schema: A list of SasInput objects describing the schema of this segment
     """
 
     def __init__(self, root: str, directory: str, data: str, sas: str,
@@ -55,8 +59,6 @@ class NibrsSegment:
         self.sas = sas
         self.records = records
 
-        self.__schema_cache = None
-
     def __repr__(self) -> str:
         return "NibrsSegment({})".format(", ".join([
             "{}={}".format(name, getattr(self, name))
@@ -64,35 +66,33 @@ class NibrsSegment:
         ]))
 
     @property
+    @functools.lru_cache(1)
     def schema(self) -> typing.List[SasInput]:
         """ Generate, cache, and return a list of variables in the data set
 
         Returns: A list of SasInput objects
         """
 
-        if self.__schema_cache is None:
-            with open(os.path.join(self.root, self.directory, self.sas)) as f:
-                # skip to SAS input code
-                for line in f:
-                    if line.startswith("INPUT"):
-                        break
+        with open(os.path.join(self.root, self.directory, self.sas)) as f:
+            # skip to SAS input code
+            for line in f:
+                if line.startswith("INPUT"):
+                    break
 
-                input_code = ""
-                for line in f:
-                    input_code += line
+            input_code = ""
+            for line in f:
+                input_code += line
 
-                    # end of input code
-                    if ";" in line:
-                        break
+                # end of input code
+                if ";" in line:
+                    break
 
-                self.__schema_cache = [
-                    SasInput(name, int(start), int(end))
-                    if len(end) > 0
-                    else SasInput(name, int(start), int(start))
-                    for (name, start, end) in REGEX_VARIABLE_DEFINITION.findall(input_code)
-                ]
-
-        return self.__schema_cache
+            return [
+                SasInput(name, int(start), int(end))
+                if len(end) > 0
+                else SasInput(name, int(start), int(start))
+                for (name, start, end) in REGEX_VARIABLE_DEFINITION.findall(input_code)
+            ]
 
     def write_csv(self, text_stream: typing.TextIO) -> None:
         """ Write this segment out to a CSV file
@@ -121,6 +121,8 @@ class NibrsDataSet:
     Attributes:
         path: The path to the data set
         manifest_path: The path to the manifest file
+
+    Properties:
         year: The year that this data set is from
         segments: A list of NibrsSegment objects
     """
@@ -134,31 +136,33 @@ class NibrsDataSet:
         self.path = path
         self.manifest_path = glob.glob(os.path.join(path, "*manifest.txt"))[0]
 
-        # self.year is lazily evaluated
-        # noinspection PyTypeChecker
-        self.year: int = None
-        self.segments: typing.List[NibrsSegment] = []
-
-        self.__read_manifest()
-
     def __repr__(self) -> str:
         return "NibrsDataSet({})".format(self.path)
 
-    def __read_manifest(self) -> None:
+    @property
+    @functools.lru_cache(1)
+    def year(self) -> int:
         """ Read the manifest file and store information about the data set and
-        objects pointing to its included segments """
+        objects pointing to its included segments
+
+        Returns: The year that the data is from, as an integer
+        """
 
         with open(self.manifest_path, "r") as f:
-            # discard first line
+            # discard the first line
             _ = f.readline()
 
-            # detect the year
             for line in f:
                 match = re.search("[0-9][0-9][0-9][0-9]", line)
                 if match:
-                    self.year = int(match.group(0))
-                    break
+                    return int(match.group(0))
 
+    @property
+    @functools.lru_cache(1)
+    def segments(self) -> typing.List[NibrsSegment]:
+        all_segments = []
+
+        with open(self.manifest_path, "r") as f:
             # skip to segment information
             for line in f:
                 if line.startswith("Study-level"):
@@ -178,7 +182,7 @@ class NibrsDataSet:
 
                         # end of last segment
                         if current_segment is not None:
-                            self.segments.append(NibrsSegment(**current_segment))
+                            all_segments.append(NibrsSegment(**current_segment))
 
                         current_segment = {
                             "root": self.path,
@@ -196,7 +200,8 @@ class NibrsDataSet:
                         if ".sas" in line:
                             current_segment["sas"] = line.split()[0]
 
-            self.segments.append(NibrsSegment(**current_segment))
+        all_segments.append(NibrsSegment(**current_segment))
+        return all_segments
 
     def extract_all(self, output_directory: str) -> None:
         """ Extract all data segments to an output directory
@@ -217,9 +222,3 @@ class NibrsDataSet:
                     "w"
             ) as f:
                 segment.write_csv(f)
-
-
-# nibrs = NibrsDataSet("rawdata/ICPSR_36120/")
-# with open("DS0001.csv", "w") as f:
-#     data.segments[0].write_csv(f)
-# nibrs.extract_all("nibrs")
