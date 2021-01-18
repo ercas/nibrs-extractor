@@ -236,8 +236,15 @@ class NibrsDataSet:
             print("({}/{}) Extracting {}".format(
                 i + 1, len(self.segments), segment.directory
             ))
+
             with open(
                     os.path.join(output_directory, "{}.csv".format(segment.directory)),
                     "w"
             ) as f:
                 segment.write_csv(f)
+
+            with open(
+                    os.path.join(output_directory, "{}-labels.csv".format(segment.directory)),
+                    "w"
+            ) as f:
+                segment.write_labels(f)
