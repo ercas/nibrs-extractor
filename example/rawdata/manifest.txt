@@ -1,0 +1,18 @@
+Mock series manifest file
+
+Study-level Documentation
+
+    (... none ...)
+
+PART1 Example Segment 1
+
+    Filename         Record  Record  Var.   Date        MD5
+                     Length  Count   Count  Updated     Checksum
+
+    data.txt         8       4       4      2020-01-18  5d8486146a640c1032619a264ae0d755
+
+    setup.sas        -       -       -      2020-01-18  27d82196437be1fcfcdf039c95474e9b
+
+Version History
+
+2020-01-01 First version
