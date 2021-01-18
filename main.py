@@ -16,7 +16,7 @@ import tqdm  # the progress bar
 
 # used to find SAS input variable definitions, e.g. B2001 1-2 -> (B2001, 1, 2)
 # note that the range could be a single number, e.g. V1006 34 -> (V1006, 34, 34)
-RE_SAS_INPUT_CODE = re.compile(r"^INPUT.*?;", re.MULTILINE|re.DOTALL)
+RE_SAS_INPUT_CODE = re.compile(r"^INPUT.*?;", re.MULTILINE | re.DOTALL)
 RE_SAS_VARIABLE_DEFINITION = re.compile(r"([A-Z]+[0-9]+)[^0-9]*?([0-9]+)[^\s]?([0-9]+)?")
 
 # used to find SAS label variable definitions, e.g. B2001 = "..." -> (B2001, ...)
@@ -93,9 +93,9 @@ class NibrsSegment:
 
             # build dict of variables, pulling labels from the labels dict
             return [
-                SasInput(*(name, start, end, labels[name]))
+                SasInput(*(name, int(start), int(end), labels[name]))
                 if end
-                else SasInput(*(name, start, start, labels[name]))
+                else SasInput(*(name, int(start), int(start), labels[name]))
                 for (name, start, end) in RE_SAS_VARIABLE_DEFINITION.findall(
                     RE_SAS_INPUT_CODE.search(sas_code).group(0)
                 )
@@ -120,6 +120,18 @@ class NibrsSegment:
                     line[variable.start - 1:variable.end].strip()
                     for variable in self.schema
                 )
+
+    def write_labels(self, text_stream: typing.TextIO) -> None:
+        """ Write this segment's variable labels out to a CSV file
+
+        Args:
+            text_stream: A TextIO stream, e.g. sys.stdout or a file pointer
+        """
+
+        writer = csv.writer(text_stream)
+        writer.writerow(("VARIABLE", "LABEL"))
+        for variable in self.schema:
+            writer.writerow((variable.name, variable.label))
 
 
 class NibrsDataSet:
