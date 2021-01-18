@@ -3,6 +3,7 @@
 # included manifest files and SAS code (thanks to NACJD for keeping it so
 # organized!)
 
+import collections
 import csv
 import dataclasses
 import functools
@@ -15,7 +16,12 @@ import tqdm  # the progress bar
 
 # used to find SAS input variable definitions, e.g. B2001 1-2 -> (B2001, 1, 2)
 # note that the range could be a single number, e.g. V1006 34 -> (V1006, 34, 34)
-REGEX_VARIABLE_DEFINITION = re.compile(r"([A-Z][0-9]+).*?([0-9]+)-?([0-9]+)?")
+RE_SAS_INPUT_CODE = re.compile(r"^INPUT.*?;", re.MULTILINE|re.DOTALL)
+RE_SAS_VARIABLE_DEFINITION = re.compile(r"([A-Z]+[0-9]+)[^0-9]*?([0-9]+)[^\s]?([0-9]+)?")
+
+# used to find SAS label variable definitions, e.g. B2001 = "..." -> (B2001, ...)
+RE_SAS_LABEL_CODE = re.compile(r"^LABEL.*?;", re.MULTILINE | re.DOTALL)
+RE_SAS_LABEL_DEFINITION = re.compile(r"([A-Z]+[0-9]+)[^0-9]*?[\"|'](.*?)[\"|']")
 
 
 @dataclasses.dataclass
@@ -25,6 +31,7 @@ class SasInput:
     name: str
     start: int
     end: typing.Optional[int]
+    label: typing.Optional[str]
 
 
 class NibrsSegment:
@@ -74,24 +81,24 @@ class NibrsSegment:
         """
 
         with open(os.path.join(self.root, self.directory, self.sas)) as f:
-            # skip to SAS input code
-            for line in f:
-                if line.startswith("INPUT"):
-                    break
+            sas_code = f.read()
 
-            input_code = ""
-            for line in f:
-                input_code += line
+            # build dict of labels
+            labels = collections.defaultdict(
+                None,
+                RE_SAS_LABEL_DEFINITION.findall(
+                    RE_SAS_LABEL_CODE.search(sas_code).group(0)
+                )
+            )
 
-                # end of input code
-                if ";" in line:
-                    break
-
+            # build dict of variables, pulling labels from the labels dict
             return [
-                SasInput(name, int(start), int(end))
-                if len(end) > 0
-                else SasInput(name, int(start), int(start))
-                for (name, start, end) in REGEX_VARIABLE_DEFINITION.findall(input_code)
+                SasInput(*(name, start, end, labels[name]))
+                if end
+                else SasInput(*(name, start, start, labels[name]))
+                for (name, start, end) in RE_SAS_VARIABLE_DEFINITION.findall(
+                    RE_SAS_INPUT_CODE.search(sas_code).group(0)
+                )
             ]
 
     def write_csv(self, text_stream: typing.TextIO) -> None:
