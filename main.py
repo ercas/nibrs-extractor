@@ -8,6 +8,7 @@ import csv
 import dataclasses
 import functools
 import glob
+import gzip
 import os
 import re
 import typing
@@ -222,11 +223,12 @@ class NibrsDataSet:
         all_segments.append(NibrsSegment(**current_segment))
         return all_segments
 
-    def extract_all(self, output_directory: str) -> None:
+    def extract_all(self, output_directory: str, compress: bool = True) -> None:
         """ Extract all data segments to an output directory
 
         Args:
             output_directory: The directory to save all segments to
+            compress: If True, output to GZIP-compressed CSV
         """
 
         if not os.path.isdir(output_directory):
@@ -237,14 +239,16 @@ class NibrsDataSet:
                 i + 1, len(self.segments), segment.directory
             ))
 
-            with open(
-                    os.path.join(output_directory, "{}.csv".format(segment.directory)),
-                    "w"
-            ) as f:
-                segment.write_csv(f)
+            output = os.path.join(output_directory, "{}.csv".format(segment.directory))
+            labels = os.path.join(output_directory, "{}-labels.csv".format(segment.directory))
 
-            with open(
-                    os.path.join(output_directory, "{}-labels.csv".format(segment.directory)),
-                    "w"
-            ) as f:
-                segment.write_labels(f)
+            if compress:
+                with gzip.open(output + ".gz", "wt") as f:
+                    segment.write_csv(f)
+                with gzip.open(labels + ".gz", "wt") as f:
+                    segment.write_labels(f)
+            else:
+                with open(output, "w") as f:
+                    segment.write_csv(f)
+                with open(labels, "w") as f:
+                    segment.write_labels(f)

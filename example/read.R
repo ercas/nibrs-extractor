@@ -2,8 +2,8 @@
 
 library(Hmisc)
 
-df <- read.csv("processed/PART1.csv") %>%
-labels <- read.csv("processed/PART1-labels.csv")
+df <- read.csv("processed/PART1.csv.gz")
+labels <- read.csv("processed/PART1-labels.csv.gz")
 
 label(df) <- as.list(
   merge(
